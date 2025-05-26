@@ -5,7 +5,11 @@ import matplotlib.pyplot as plt
 # ------------------------- PAGE CONFIG -------------------------
 st.set_page_config(page_title=" Beam Divergence in Vacuum & Atmosphere", layout="wide")
 
-tab_main, tab_converter = st.tabs(["🔭 Beam Divergence Tool", "📉 Loss % ⇄ dB Converter"])
+tab_main, tab_converter, tab_lens = st.tabs([
+    " Beam Divergence Tool",
+    " Loss % ⇄ dB Converter",
+    " Interactive Loss Estimator"
+])
 
 # ------------------------- TAB 1: BEAM TOOL -------------------------
 with tab_main:
@@ -258,5 +262,45 @@ with tab_converter:
         **Fraction of Power Captured (η):** `{eta*100:.2f}%`  
         **Diffraction Loss:** `{loss_db:.2f} dB`
         """)
+with tab_lens:
+    st.title("📊 Beam Loss Estimator: Input/Output Beam Size & Turbulence")
+
+    st.markdown("""
+    This tool calculates **Diffraction Loss** using Gaussian beam approximation  
+    and estimates **Coupling Loss** based on Adaptive Optics (AO) usage.
+    """)
+
+    # Inputs
+    input_dia = st.number_input("Input Beam Diameter at TX (mm)", min_value=1.0, max_value=1000.0, value=120.0)
+    output_dia = st.number_input("Beam Diameter at RX (mm)", min_value=1.0, max_value=1000.0, value=650.0)
+    rx_aperture = st.number_input("RX Aperture Diameter (mm)", min_value=1.0, max_value=1000.0, value=120.0)
+
+    turbulence_level = st.selectbox("Turbulence Level", ["Strong", "Moderate", "Weak"])
+    use_ao = st.checkbox("Use Adaptive Optics (AO)?", value=True)
+
+    # Calculations
+    w = (output_dia / 2) / 1000  # beam waist in meters
+    r_rx = (rx_aperture / 2) / 1000  # receiver radius in meters
+    clip_ratio = r_rx / w
+    eta = 1 - np.exp(-2 * clip_ratio**2)
+    diffraction_loss_db = -10 * np.log10(np.clip(eta, 1e-10, 1))
+
+    # Coupling efficiency (as decimal)
+    if use_ao:
+        coupling_dict = {"Strong": 0.50, "Moderate": 0.75, "Weak": 0.90}
+    else:
+        coupling_dict = {"Strong": 0.01, "Moderate": 0.05, "Weak": 0.10}
+
+    coupling_eff = coupling_dict[turbulence_level]
+    total_eff = eta * coupling_eff
+    total_loss_db = -10 * np.log10(np.clip(total_eff, 1e-10, 1))
+
+    # Results
+    st.markdown("### 🔍 Results")
+    st.markdown(f"**Diffraction Transmission Efficiency:** `{eta*100:.2f}%`")
+    st.markdown(f"**Coupling Efficiency (based on AO & turbulence):** `{coupling_eff*100:.2f}%`")
+    st.markdown(f"**Total Effective Transmission Efficiency:** `{total_eff*100:.2f}%`")
+    st.markdown(f"**→ Diffraction Loss:** `{diffraction_loss_db:.2f} dB`")
+    st.markdown(f"**→ Total Loss (Diffraction + Coupling):** `{total_loss_db:.2f} dB`")
 
 
